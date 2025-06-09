@@ -25,7 +25,7 @@ def login_form():
         if submit:
             if authenticate(username, password):
                 st.session_state.authenticated = True
-                st.experimental_rerun()
+                # st.experimental_rerun()
                 return
             else:
                 st.error("Usuário ou senha incorretos.")
