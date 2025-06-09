@@ -26,7 +26,7 @@ def login_form():
             if authenticate(username, password):
                 st.session_state.authenticated = True
                 st.experimental_rerun()
-                return  # <- ESSENCIAL PARA EVITAR CONTINUAR EXECUÇÃO
+                return
             else:
                 st.error("Usuário ou senha incorretos.")
 
@@ -35,6 +35,7 @@ def grafico_barra(df, taxa_acerto, descricao_habilidade, codigo_habilidade):
     df = df[df[taxa_acerto] > 0]
 
     df_agrupado = df.groupby([codigo_habilidade, descricao_habilidade], as_index=False)[taxa_acerto].mean()
+    df_agrupado = df_agrupado.sort_values(by=codigo_habilidade)
 
     fig = px.bar(
         df_agrupado, 
@@ -83,15 +84,18 @@ def grafico_barra(df, taxa_acerto, descricao_habilidade, codigo_habilidade):
 
     st.plotly_chart(fig, use_container_width=True)
 
+@st.cache_data
+def carregar_dados():
+    return pd.read_csv("dados.csv")
+
 def main_app():
     st.title("📋 Sistema de Consulta - AvalieCE 2024")
 
     try:
-        df = pd.read_csv("dados.csv")
+        df = carregar_dados()
 
         st.sidebar.header("🎯 Filtros")
 
-        # Filtros encadeados
         regionais = ['Todas'] + sorted(df['NM_ENTIDADE'].dropna().unique().tolist())
         regional = st.sidebar.selectbox("Crede:", regionais)
         df_filtrado = df.copy()
@@ -113,35 +117,33 @@ def main_app():
         if disciplina != 'Todas':
             df_filtrado = df_filtrado[df_filtrado['VL_FILTRO_DISCIPLINA'] == disciplina]
 
-        # Busca geral
         search_term = st.text_input("🔍 Buscar por palavra-chave (habilidade, código etc):")
-        if search_term:
+        if search_term and 'DC_HABILIDADE' in df_filtrado.columns and 'CD_HABILIDADE' in df_filtrado.columns:
             df_filtrado = df_filtrado[df_filtrado[['DC_HABILIDADE', 'CD_HABILIDADE']].astype(str).apply(
                 lambda x: x.str.contains(search_term, case=False, na=False)
             ).any(axis=1)]
 
-        # Exibir dados
         if df_filtrado.empty:
             st.warning("Nenhum registro encontrado.")
         else:
-            st.dataframe(df_filtrado, use_container_width=True)
+            colunas_exibir = ['CD_HABILIDADE', 'DC_HABILIDADE', 'TX_ACERTO', 'DC_FILTRO_AVALIACAO']
+            colunas_validas = [col for col in colunas_exibir if col in df_filtrado.columns]
+            st.dataframe(df_filtrado[colunas_validas], use_container_width=True)
             st.success(f"✅ Total de registros: {len(df_filtrado)}")
 
-            # Gráficos por avaliação
             st.subheader("📊 Gráficos de Acerto por Habilidade (por Avaliação)")
             avaliacoes = df_filtrado['DC_FILTRO_AVALIACAO'].dropna().unique().tolist()
 
             for avaliacao in avaliacoes:
                 df_avaliacao = df_filtrado[df_filtrado['DC_FILTRO_AVALIACAO'] == avaliacao]
-                st.markdown(f"### 📝 {avaliacao}")
-                grafico_barra(
-                    df_avaliacao,
-                    taxa_acerto='TX_ACERTO',
-                    descricao_habilidade='DC_HABILIDADE',
-                    codigo_habilidade='CD_HABILIDADE'
-                )
+                with st.expander(f"📝 {avaliacao}", expanded=False):
+                    grafico_barra(
+                        df_avaliacao,
+                        taxa_acerto='TX_ACERTO',
+                        descricao_habilidade='DC_HABILIDADE',
+                        codigo_habilidade='CD_HABILIDADE'
+                    )
 
-        # Feedback
         st.markdown("---")
         st.subheader("💬 Sua opinião é importante!")
         st.info(
@@ -154,7 +156,6 @@ def main_app():
     except Exception as e:
         st.error(f"❌ Erro: {e}")
 
-    # Botão de logout
     if st.sidebar.button("Sair"):
         st.session_state.authenticated = False
         st.experimental_rerun()
@@ -164,3 +165,4 @@ if st.session_state.authenticated:
     main_app()
 else:
     login_form()
+    st.stop()  # Para a execução após o login
