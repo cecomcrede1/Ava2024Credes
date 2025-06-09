@@ -26,8 +26,9 @@ def login_form():
             if authenticate(username, password):
                 st.session_state.authenticated = True
                 st.experimental_rerun()
+                return  # <- ESSENCIAL PARA EVITAR CONTINUAR EXECUÇÃO
             else:
-                st.error("Usuário ou senha incorretos!")
+                st.error("Usuário ou senha incorretos.")
 
 def grafico_barra(df, taxa_acerto, descricao_habilidade, codigo_habilidade):    
     df[taxa_acerto] = pd.to_numeric(df[taxa_acerto], errors='coerce')
